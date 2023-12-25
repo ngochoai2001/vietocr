@@ -1,0 +1,16 @@
+einops
+gdown
+prefetch_generator
+imgaug
+lmdb
+craft-text-detector
+torchvision==0.13
+flask
+apispec
+apispec-webframeworks
+marshmallow
+urllib3==1.26.6
+torchmetrics
+scikit-learn
+pymongo
+pydantic
