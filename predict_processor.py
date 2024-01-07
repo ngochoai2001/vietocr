@@ -8,6 +8,8 @@ from craft_text_detector import (
     export_extra_results,
     empty_cuda_cache
 )
+from transformers import pipeline
+
 
 
 def craft_text_detector(image, refine_net, craft_net):
@@ -71,14 +73,15 @@ def craft_text_detector(image, refine_net, craft_net):
         output_dir=output_dir,
         rectify=True
     )
+    return sorted_lines
 
     # export heatmap, detection points, box visualization
-    export_extra_results(
-        image=image,
-        regions=boxes,
-        heatmaps=prediction_result["heatmaps"],
-        output_dir=output_dir
-    )
+    # export_extra_results(
+    #     image=image,
+    #     regions=boxes,
+    #     heatmaps=prediction_result["heatmaps"],
+    #     output_dir=output_dir
+    # )
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -88,8 +91,34 @@ import glob
 import shutil 
 
 
-def vietocr_text_recognition(image ):
-    craft_text_detector(image, craft_refine_net, craft_net)
+def vietocr_text_recognition(image, craft_refine_net, craft_net, detector, corrector):
+    sorted_lines = craft_text_detector(image, craft_refine_net,craft_net )
+    
+    # image_paths = glob.glob('./craft_result/image_crops/*.png')
+    # image_paths.sort(key=lambda x: [len(x), x])
+    result = []
+    # print("before")
+    # for img in image_paths:
+    #     img = Image.open(img)
+    #     s = detector.predict(img)
+    #     result.append(s)
+    img = Image.open(image)
+    for line in sorted_lines:
+        result_line = ""
+        for word in line:
+            img_area = (word[0][0],word[0][1], word[2][0], word[2][1])
+            img_word = img.crop(img_area)
+            result_line += detector.predict(img_word)+" "
+        result.append(result_line)
+    # print(result)
+    for i in result:
+        print(corrector(i))
+    return result
+
+from datetime import datetime
+
+
+def loadPredictor():
     config = Cfg.load_config_from_name('vgg_transformer')
     config['weights'] = './weights/transformerocr.pth'
     config['cnn']['pretrained']=False
@@ -119,33 +148,25 @@ def vietocr_text_recognition(image ):
     config['dataset'].update(dataset_params)
     config['device'] = 'cpu'
     detector = Predictor(config)
-
-    image_paths = glob.glob('./craft_result/image_crops/*.png')
-    image_paths.sort(key=lambda x: [len(x), x])
-    result = []
-    print("before")
-    for img in image_paths:
-        img = Image.open(img)
-        s = detector.predict(img)
-        result.append(s)
-    print(result)
-    for i in result:
-        print(i, end = ' ')
-    return result
-
-from datetime import datetime
+    return detector
 
 
 
 
-image = './user_img/IMG_3529.JPG'
-# load models
-craft_refine_net = load_refinenet_model(cuda=False)
-craft_net = load_craftnet_model(cuda=False, weight_path='./craft_mlt_25k.pth')
-now = datetime.now()
-current_time = now.strftime("%H:%M:%S")
-print("Current Time =", current_time)
-# vietocr_text_recognition(image)
-# now = datetime.now()
-# current_time = now.strftime("%H:%M:%S")
-# print("Current Time =", current_time)
+def test():
+    CRAFT_REFINE_NET = load_refinenet_model(cuda=False)
+    CRAFT_NET = load_craftnet_model(cuda=False, weight_path='./craft_mlt_25k.pth')
+    PREDICTOR = loadPredictor()
+    CORRECTOR = pipeline("text2text-generation", model="bmd1905/vietnamese-correction")
+ 
+    image = './user_img/IMG_3529.JPG'
+    # load models
+
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print("Current Time =", current_time)
+    vietocr_text_recognition(image, CRAFT_REFINE_NET, CRAFT_NET, PREDICTOR, CORRECTOR)
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print("Current Time =", current_time)
+test()
